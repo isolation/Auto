@@ -12,7 +12,31 @@ use base qw(Exporter);
 our (%LANGE, %MODULE, %EVENTS, %HOOKS, %CMDS, %ALIASES, %RAWHOOKS);
 our @EXPORT_OK = qw(conf_get trans err awarn timer_add timer_del cmd_add 
                     cmd_del hook_add hook_del rchook_add rchook_del match_user
-                    has_priv mod_exists ratelimit_check fpfmt hook_exists);
+                    has_priv mod_exists ratelimit_check fpfmt hook_exists callback_run);
+
+# Run an extension callback without allowing an uncaught exception to terminate
+# the event loop. Returns a success flag followed by the callback's scalar result.
+sub callback_run {
+    my ($description, $callback, @args) = @_;
+    my $result;
+    my $ok = eval {
+        $result = $callback->(@args);
+        1;
+    };
+    my $exception = $@;
+
+    if (!$ok) {
+        $exception = 'unknown exception' if !defined $exception or $exception eq q{};
+        $exception =~ s/[\r\n]+/ /gsm;
+        $exception =~ s/\s+$//sm;
+        my $message = "Callback failure [$description]: $exception";
+        API::Log::alog($message);
+        API::Log::dbug($message);
+        return (0, undef);
+    }
+
+    return (1, $result);
+}
 
 
 # Initialize a module.
@@ -210,8 +234,9 @@ sub event_run {
     if (defined $EVENTS{lc $event} and defined $HOOKS{lc $event}) {
         PRIORITY: foreach my $priority (sort { $a <=> $b } keys %{ $HOOKS{lc $event} }) {
             foreach my $cb (@{$API::Std::HOOKS{lc $event}{$priority}}) {
-                my $result = $cb->[1]->(@args);
-                if (int $result == -1) { last PRIORITY }
+                my ($ok, $result) = callback_run('event '.$event.' hook '.$cb->[0], $cb->[1], @args);
+                next if !$ok;
+                if (defined $result and int $result == -1) { last PRIORITY }
             }
         }
     }

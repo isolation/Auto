@@ -23,7 +23,14 @@ sub new {
         interval => $opts{delay},
         on_tick  => sub {
             my $self = shift;
-            $self->{function}->();
+            my ($ok) = API::Std::callback_run("timer $self->{name}", $self->{function});
+            if (!$ok) {
+                $self->stop;
+                $Auto::loop->remove($self);
+                delete $Auto::TIMERS{$self->{name}};
+                $class->dbug("Timer $self->{name} deleted after its callback failed.");
+                return;
+            }
             if ($self->{type} == 1) {
                 $self->stop;
                 $Auto::loop->remove($self);

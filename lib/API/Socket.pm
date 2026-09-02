@@ -86,7 +86,7 @@ sub add_socket {
             while ($$buffref =~ s/^(.*)\n//) {
                 my $type = (Auto::is_ircsock($id) ? 'IRC' : 'Socket');
                 dbug "[$type] $id << $1";
-                &{$handler}($id, $1);
+                API::Std::callback_run("socket $id handler", $handler, $id, $1);
             }
         },
         on_read_eof => sub {

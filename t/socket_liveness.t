@@ -29,6 +29,10 @@ BEGIN {
     }
     sub timer_del { delete $TIMERS{lc $_[0]}; return 1 }
     sub event_run { push @EVENTS, [@_]; return 1 }
+    sub callback_run {
+        my (undef, $callback, @args) = @_;
+        return (1, $callback->(@args));
+    }
     sub event_add { return 1 }
     sub mod_exists { return }
     sub awarn { return 1 }

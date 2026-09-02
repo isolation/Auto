@@ -94,7 +94,7 @@ sub ircparse {
          # Check for a raw hook.
          if (defined $API::Std::RAWHOOKS{$ex[1]}) {
              foreach (keys %{$API::Std::RAWHOOKS{$ex[1]}}) {
-                 &{ $API::Std::RAWHOOKS{$ex[1]}{$_} }($svr, @ex);
+                 API::Std::callback_run("raw hook $ex[1]/$_", $API::Std::RAWHOOKS{$ex[1]}{$_}, $svr, @ex);
              }
          }
     }

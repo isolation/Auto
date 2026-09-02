@@ -415,6 +415,13 @@ hook_add('on_disconnect', 'state.svrlist.del', sub {
     return 1;
 }, 1);
 
+# Reconnect after socket and IRC state have been cleaned up.
+hook_add('on_disconnect', 'connection.reconnect', sub {
+    my ($svr) = @_;
+    Lib::Auto::schedule_reconnect($svr);
+    return 1;
+}, 2);
+
 # Track our usermodes.
 hook_add('on_umode', 'state.self_umodes', sub {
     my (($svr, $modes)) = @_;

@@ -3,6 +3,8 @@ Auto IRC Bot 3.0: Change Log
 
 3.0 Indev
 ===============================================================================
+    * IRC connections now use heartbeat deadlines and reconnect with capped
+      exponential backoff after EOF, read errors, write errors, or timeouts.
     * IPLookup: Lookup information on an IP address
     * Factoid: Add edit command
     * Fixed: bug in creating var/ making it unwritable and unreadable.

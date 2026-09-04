@@ -41,7 +41,7 @@ sub fire_event {
             );
 
             # call it.
-            $cb->[1]->(\%info, @_);
+            API::Std::callback_run("object event $event callback $cb->[0]", $cb->[1], \%info, @_);
         }
     }
 

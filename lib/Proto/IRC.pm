@@ -32,6 +32,7 @@ our %RAWC = (
     'NICK'     => \&nick,
     'NOTICE'   => \&notice,
     'PART'     => \&part,
+    'PONG'     => \&pong,
     'PRIVMSG'  => \&privmsg,
     'QUIT'     => \&quit,
     'TOPIC'    => \&topic,
@@ -77,6 +78,9 @@ sub ircparse {
             # send a PONG.
             Auto::socksnd($svr, "PONG $ex[1]");
         }
+        elsif ($ex[0] eq 'PONG') {
+            pong($svr, @ex);
+        }
         # If it's AUTHENTICATE
         elsif ($ex[0] eq 'AUTHENTICATE') {
             if (API::Std::mod_exists('SASLAuth')) {
@@ -90,7 +94,7 @@ sub ircparse {
          # Check for a raw hook.
          if (defined $API::Std::RAWHOOKS{$ex[1]}) {
              foreach (keys %{$API::Std::RAWHOOKS{$ex[1]}}) {
-                 &{ $API::Std::RAWHOOKS{$ex[1]}{$_} }($svr, @ex);
+                 API::Std::callback_run("raw hook $ex[1]/$_", $API::Std::RAWHOOKS{$ex[1]}{$_}, $svr, @ex);
              }
          }
     }
@@ -108,6 +112,7 @@ sub num001 {
     my ($svr, @ex) = @_;
 
     $got_001{$svr} = 1;
+    Lib::Auto::connection_ready($svr);
 
     # In case we don't get NICK from the server.
     if (!defined $State::IRC::botinfo{$svr}{nick}) {
@@ -122,6 +127,13 @@ sub num001 {
     # Trigger on_connect.
     API::Std::event_run('on_connect', $svr);
 
+    return 1;
+}
+
+# Parse a response to a client-originated heartbeat.
+sub pong {
+    my ($svr, @ex) = @_;
+    API::Socket::pong_received($svr, $ex[-1]);
     return 1;
 }
 

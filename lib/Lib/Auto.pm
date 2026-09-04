@@ -8,10 +8,14 @@ use feature qw(say);
 use English qw(-no_match_vars);
 use Sys::Hostname;
 use feature qw(switch);
-use API::Std qw(hook_add conf_get err);
+use API::Std qw(hook_add conf_get err timer_add timer_del);
 use API::Log qw(dbug alog);
 use API::Socket qw(add_socket);
 our $VERSION = 3.000000;
+our (%RECONNECT_ATTEMPTS, %RECONNECT_TIMER);
+
+use constant DEFAULT_RECONNECT_DELAY     => 5;
+use constant DEFAULT_RECONNECT_MAX_DELAY => 300;
 
 # Core events.
 API::Std::event_add('on_shutdown');
@@ -206,9 +210,8 @@ sub rehash {
 
     # Check for server connections.
     if (!keys %Auto::SOCKET) {
-        err(2, 'No IRC connections -- Exiting program.', 0);
-        API::Std::event_run('on_shutdown');
-        exit 1;
+        err(2, 'No IRC connections -- Retrying in the background.', 0);
+        schedule_reconnect($_) foreach keys %cservers;
     }
 
     # Now trigger on_rehash.
@@ -268,7 +271,7 @@ sub ircsock {
     my $pkg = ($usessl ? 'IO::Socket::SSL' : 'IO::Socket');
     $conndata{LocalAddr} = $cdata->{'bind'}[0] if defined $cdata->{'bind'}[0]; 
     my $object = $pkg->new(%conndata) or say "$!" and return;
-    add_socket($svrname, $object, \&Proto::IRC::ircparse);
+    add_socket($svrname, $object, \&Proto::IRC::ircparse) or return;
 
     # Create a CAP entry if it doesn't already exist.
     if (!$Proto::IRC::cap{$svrname}) { $Proto::IRC::cap{$svrname} = 'multi-prefix' }
@@ -287,6 +290,60 @@ sub ircsock {
     alog '** Successfully connected to server: '.$svrname;
     dbug '** Successfully connected to server: '.$svrname;
 
+    return 1;
+}
+
+sub _config_number {
+    my ($svr, $name, $default) = @_;
+    my @value = conf_get("server:$svr:$name");
+    @value = conf_get($name) if !@value or !defined $value[0];
+    return $default if !@value or !defined $value[0] or
+        !defined $value[0][0] or $value[0][0] <= 0;
+    return $value[0][0];
+}
+
+sub schedule_reconnect {
+    my ($svr) = @_;
+    return if defined $Auto::SOCKET{$svr} or defined $RECONNECT_TIMER{$svr};
+
+    my %servers = conf_get('server');
+    return if !defined $servers{$svr};
+
+    my $attempt = $RECONNECT_ATTEMPTS{$svr} || 0;
+    my $delay = _config_number($svr, 'reconnect_delay', DEFAULT_RECONNECT_DELAY);
+    my $maximum = _config_number($svr, 'reconnect_max_delay', DEFAULT_RECONNECT_MAX_DELAY);
+    my $remaining_attempts = $attempt;
+    while ($remaining_attempts-- > 0 and $delay < $maximum) { $delay *= 2 }
+    $delay = $maximum if $delay > $maximum;
+    $RECONNECT_ATTEMPTS{$svr} = $attempt + 1;
+
+    my $safe_svr = $svr;
+    $safe_svr =~ s/[^a-z0-9_]/_/ig;
+    my $timer_name = join('_', 'irc_reconnect', $safe_svr, $attempt);
+    $RECONNECT_TIMER{$svr} = $timer_name;
+    alog "* Reconnecting to $svr in $delay seconds.";
+    dbug "* Reconnecting to $svr in $delay seconds.";
+
+    timer_add($timer_name, 1, $delay, sub {
+        delete $RECONNECT_TIMER{$svr};
+        return 1 if defined $Auto::SOCKET{$svr};
+        my %current_servers = conf_get('server');
+        return 1 if !defined $current_servers{$svr};
+        if (!ircsock(\%{$current_servers{$svr}}, $svr)) {
+            schedule_reconnect($svr);
+        }
+        return 1;
+    });
+    return 1;
+}
+
+sub connection_ready {
+    my ($svr) = @_;
+    if (defined $RECONNECT_TIMER{$svr}) {
+        timer_del($RECONNECT_TIMER{$svr});
+        delete $RECONNECT_TIMER{$svr};
+    }
+    delete $RECONNECT_ATTEMPTS{$svr};
     return 1;
 }
 

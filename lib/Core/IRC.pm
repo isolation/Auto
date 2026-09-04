@@ -6,7 +6,7 @@ package Core::IRC;
 use strict;
 use warnings;
 use English qw(-no_match_vars);
-use API::Std qw(hook_add timer_add conf_get trans);
+use API::Std qw(hook_add timer_add conf_get trans callback_run);
 use API::IRC qw(notice usrc);
 
 # Events.
@@ -14,6 +14,12 @@ API::Std::event_add('on_cprivmsg');
 API::Std::event_add('on_uprivmsg');
 
 our (%usercmd);
+
+sub _run_command {
+    my ($cmd, $src, @argv) = @_;
+    my ($ok) = callback_run("command $cmd", $API::Std::CMDS{$cmd}{'sub'}, $src, @argv);
+    return $ok;
+}
 
 # PRIVMSG parser for commands.
 hook_add('on_privmsg', 'irc.privmsg.parse', sub {
@@ -46,7 +52,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                             # If this command requires a privilege...
                             if (API::Std::has_priv(API::Std::match_user(%data), $API::Std::CMDS{$cmd}{priv})) {
                                 # Make sure they have it.
-                                &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                                _run_command($cmd, \%data, @argv);
                             }
                             else {
                                 # Else give them the boot.
@@ -55,7 +61,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                         }
                         else {
                             # Else execute the command without any extra checks.
-                            &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                            _run_command($cmd, \%data, @argv);
                         }
                     }
                     else {
@@ -90,7 +96,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                             # If this command takes a privilege...
                             if (API::Std::has_priv(API::Std::match_user(%data), $API::Std::CMDS{$cmd}{priv})) {
                                 # Make sure they have it.
-                                &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                                _run_command($cmd, \%data, @argv);
                             }
                             else {
                                 # Else give them the boot.
@@ -99,7 +105,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                         }
                         else {
                             # Else continue executing without any extra checks.
-                            &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                            _run_command($cmd, \%data, @argv);
                         }
                     }
                     else {
@@ -116,7 +122,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                             # If this command takes a privilege...
                             if (API::Std::has_priv(API::Std::match_user(%data), $API::Std::CMDS{$cmd}{priv})) {
                                 # Make sure they have it.
-                                &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                                _run_command($cmd, \%data, @argv);
                             }
                             else {
                                 # Else give them the boot.
@@ -125,7 +131,7 @@ hook_add('on_privmsg', 'irc.privmsg.parse', sub {
                         }
                         else {
                             # Else continue executing without any extra checks.
-                            &{ $API::Std::CMDS{$cmd}{'sub'} }(\%data, @argv);
+                            _run_command($cmd, \%data, @argv);
                         }
                     }
                 }
@@ -414,6 +420,13 @@ hook_add('on_disconnect', 'state.svrlist.del', sub {
 
     return 1;
 }, 1);
+
+# Reconnect after socket and IRC state have been cleaned up.
+hook_add('on_disconnect', 'connection.reconnect', sub {
+    my ($svr) = @_;
+    Lib::Auto::schedule_reconnect($svr);
+    return 1;
+}, 2);
 
 # Track our usermodes.
 hook_add('on_umode', 'state.self_umodes', sub {

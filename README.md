@@ -17,6 +17,8 @@ contributed modules. There is a chance that it will be accepted.
 
 Please do see **Moving Forward** below, and NOTICE.md.
 
+Module loading, unloading, and recovery are described in [doc/MODULES.md](doc/MODULES.md).
+
 Developers
 ----------
 

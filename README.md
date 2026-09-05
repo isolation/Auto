@@ -19,6 +19,8 @@ Please do see **Moving Forward** below, and NOTICE.md.
 
 Module loading, unloading, and recovery are described in [doc/MODULES.md](doc/MODULES.md).
 
+On-demand YouTube titles (`PLZ`) are described in [doc/YOUTUBE.md](doc/YOUTUBE.md).
+
 Developers
 ----------
 

@@ -621,13 +621,7 @@ sub mod_load {
               (-e "$bin{mod}/$module/main.pm") ? "$bin{mod}/$module/main.pm" : undef;
     return 'Module not found' unless defined $mod;
 
-    return eval {
-        $SIG{__WARN__} = $SIG{__DIE__} = sub {};
-        my $result = do $mod;
-        return $@ if $@; # Parse/Syntax error.
-        return 'Module initialization failed. Check logs for more information' if !$result; # mod_init() failed.
-        undef
-    }
+    return API::Std::mod_load($module, $mod);
 }
 
 # vim: set ai et sw=4 ts=4:

@@ -52,7 +52,7 @@ sub cmd_modload
 
 # Help hash for MODUNLOAD. Spanish, French and German needed.
 our %HELP_MODUNLOAD = (
-    'en' => 'Unloads a module from the running Auto live.',
+    'en' => 'Unloads a module. Syntax: MODUNLOAD <module> [FORCE]. FORCE recovers core registrations if module cleanup fails.',
 );
 # MODUNLOAD callback.
 sub cmd_modunload
@@ -65,6 +65,12 @@ sub cmd_modunload
         return;
     }
 
+    if (@argv > 2 || (defined $argv[1] && uc($argv[1]) ne 'FORCE')) {
+        notice($src->{svr}, $src->{nick}, 'Syntax: MODUNLOAD <module> [FORCE]');
+        return;
+    }
+    my $force = defined $argv[1] && uc($argv[1]) eq 'FORCE';
+
     # Check if the module exists.
     if (!API::Std::mod_exists($argv[0])) {
         notice($src->{svr}, $src->{nick}, "Module \002".$argv[0]."\002 is not loaded.");
@@ -72,7 +78,7 @@ sub cmd_modunload
     }
 
     # Go for it!
-    my $tn = API::Std::mod_void($argv[0]);
+    my $tn = API::Std::mod_void($argv[0], $force);
 
     # Check if we were successful or not.
     if ($tn) {
@@ -81,7 +87,7 @@ sub cmd_modunload
     }
     else {
         # We weren't.
-        notice($src->{svr}, $src->{nick}, "Module \002".$argv[0]."\002 failed to unload.");
+        notice($src->{svr}, $src->{nick}, "Module \002".$argv[0]."\002 failed to unload: ".$API::Std::MODULE_ERROR);
         return;
     }
 
@@ -90,7 +96,7 @@ sub cmd_modunload
 
 # Help hash for MODRELOAD. Spanish, French and German needed.
 our %HELP_MODRELOAD = (
-    'en' => 'Unloads then loads a module into the running Auto live.',
+    'en' => 'Unloads then loads a module. Syntax: MODRELOAD <module> [FORCE]. FORCE recovers core registrations if module cleanup fails.',
 );
 # MODRELOAD callback.
 sub cmd_modreload
@@ -103,6 +109,12 @@ sub cmd_modreload
         return;
     }
 
+    if (@argv > 2 || (defined $argv[1] && uc($argv[1]) ne 'FORCE')) {
+        notice($src->{svr}, $src->{nick}, 'Syntax: MODRELOAD <module> [FORCE]');
+        return;
+    }
+    my $force = defined $argv[1] && uc($argv[1]) eq 'FORCE';
+
     # Check if the module exists.
     if (!API::Std::mod_exists($argv[0])) {
         notice($src->{svr}, $src->{nick}, "Module \002".$argv[0]."\002 is not loaded.");
@@ -111,8 +123,8 @@ sub cmd_modreload
 
     # Go for it!
     my ($tvn, $tln) = (0, 0);
-    $tvn = API::Std::mod_void($argv[0]);
-    $tln = Auto::mod_load($argv[0]) if $tvn;
+    $tvn = API::Std::mod_void($argv[0], $force);
+    $tln = $tvn ? Auto::mod_load($argv[0]) : $API::Std::MODULE_ERROR;
 
     # Check if we were successful or not.
     if ($tvn and !$tln) {

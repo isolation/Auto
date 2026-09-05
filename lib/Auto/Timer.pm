@@ -24,6 +24,9 @@ sub new {
         on_tick  => sub {
             my $self = shift;
             my ($ok) = API::Std::callback_run("timer $self->{name}", $self->{function});
+            # The callback may unload its module or replace this timer.
+            return unless $Auto::TIMERS{$self->{name}}
+                && $Auto::TIMERS{$self->{name}} == $self;
             if (!$ok) {
                 $self->stop;
                 $Auto::loop->remove($self);
